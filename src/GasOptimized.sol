@@ -85,22 +85,21 @@ abstract contract Ownable is Context {
 }
 
 contract Constants {
-    uint256 public tradeFlag = 1;
-    uint256 public basicFlag = 0;
-    uint256 public dividendFlag = 1;
+    uint8 public tradeFlag = 1;
+    uint8 public dividendFlag = 1;
 }
 
 contract GasContract is Ownable, Constants {
     uint256 public totalSupply = 0; // cannot be updated
     uint256 public paymentCounter = 0;
-    mapping(address => uint256) public balances;
     uint256 public tradePercent = 12;
-    address public contractOwner;
     uint256 public tradeMode = 0;
+    address[5] public administrators;
+    address public contractOwner;
+    bool public isReady = false;
+    mapping(address => uint256) public balances;
     mapping(address => Payment[]) public payments;
     mapping(address => uint256) public whitelist;
-    address[5] public administrators;
-    bool public isReady = false;
     enum PaymentType {
         Unknown,
         BasicPayment,
@@ -114,11 +113,11 @@ contract GasContract is Ownable, Constants {
 
     struct Payment {
         PaymentType paymentType;
-        uint256 paymentID;
         bool adminUpdated;
-        string recipientName; // max 8 characters
         address recipient;
         address admin; // administrators address
+        string recipientName; // max 8 characters
+        uint256 paymentID;
         uint256 amount;
     }
 
