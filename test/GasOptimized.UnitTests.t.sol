@@ -130,18 +130,18 @@ contract GasTest is Test {
         balances[_recipient] -= whitelist[senderOfTx]; 
         */
 
-    // check balances update 
+    // check balances update
     function testWhiteTranferAmountUpdate(
         address _recipient,
         address _sender,
-        uint256 _amount, 
+        uint256 _amount,
         string calldata _name,
         uint256 _tier
     ) public {
         uint256 _preRecipientAmount = gas.balances(_recipient) + 0;
         vm.assume(_recipient != address(0));
         vm.assume(_sender != address(0));
-         _amount = bound(_amount,0 , gas.balanceOf(owner));
+        _amount = bound(_amount,0 , gas.balanceOf(owner));
         _tier = bound( _tier, 1, 244);
         vm.assume(_amount > 3);
         vm.assume(bytes(_name).length < 9 && bytes(_name).length >0);

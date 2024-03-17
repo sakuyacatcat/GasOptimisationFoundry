@@ -98,7 +98,7 @@ contract GasContract is Ownable, Constants {
     address public contractOwner;
     bool public isReady = false;
     mapping(address => uint256) public balances;
-    mapping(address => Payment[]) public payments;
+    mapping(address => Payment[]) private payments;
     mapping(address => uint256) public whitelist;
     enum PaymentType {
         Unknown,
@@ -142,35 +142,31 @@ contract GasContract is Ownable, Constants {
     event AddedToWhitelist(address userAddress, uint256 tier);
 
     modifier onlyAdminOrOwner() {
-        address senderOfTx = msg.sender;
-        if (checkForAdmin(senderOfTx)) {
+        if (checkForAdmin(msg.sender)) {
             require(
-                checkForAdmin(senderOfTx),
+                checkForAdmin(msg.sender),
                 "Gas Contract Only Admin Check-  Caller not admin"
             );
-            _;
-        } else if (senderOfTx == contractOwner) {
-            _;
+        } else if (msg.sender == contractOwner) {
         } else {
             revert(
                 "Error in Gas contract - onlyAdminOrOwner modifier : revert happened because the originator of the transaction was not the admin, and furthermore he wasn't the owner of the contract, so he cannot run this function"
             );
         }
+        _;
     }
 
     modifier checkIfWhiteListed(address sender) {
-        address senderOfTx = msg.sender;
         require(
-            senderOfTx == sender,
+            msg.sender == sender,
             "Gas Contract CheckIfWhiteListed modifier : revert happened because the originator of the transaction was not the sender"
         );
-        uint256 usersTier = whitelist[senderOfTx];
         require(
-            usersTier > 0,
+            whitelist[msg.sender] > 0,
             "Gas Contract CheckIfWhiteListed modifier : revert happened because the user is not whitelisted"
         );
         require(
-            usersTier < 4,
+            whitelist[msg.sender] < 4,
             "Gas Contract CheckIfWhiteListed modifier : revert happened because the user's tier is incorrect, it cannot be over 4 as the only tier we have are: 1, 2, 3; therfore 4 is an invalid tier for the whitlist of this contract. make sure whitlist tiers were set correctly"
         );
         _;
@@ -215,46 +211,33 @@ contract GasContract is Ownable, Constants {
         return paymentHistory;
     }
 
-    function checkForAdmin(address _user) public view returns (bool admin_) {
-        bool admin = false;
+    function checkForAdmin(address _user) public view returns (bool) {
         for (uint256 ii = 0; ii < administrators.length; ii++) {
             if (administrators[ii] == _user) {
-                admin = true;
+                return true;
             }
         }
-        return admin;
+        return false;
     }
 
     function balanceOf(address _user) public view returns (uint256 balance_) {
-        uint256 balance = balances[_user];
-        return balance;
+        balance_ = balances[_user];
     }
 
-    function getTradingMode() public view returns (bool mode_) {
-        bool mode = false;
+    function getTradingMode() public view returns (bool) {
         if (tradeFlag == 1 || dividendFlag == 1) {
-            mode = true;
+            return true;
         } else {
-            mode = false;
+            return false;
         }
-        return mode;
     }
-
 
     function addHistory(address _updateAddress, bool _tradeMode)
         public
         returns (bool status_, bool tradeMode_)
     {
-        History memory history;
-        history.blockNumber = block.number;
-        history.lastUpdate = block.timestamp;
-        history.updatedBy = _updateAddress;
-        paymentHistory.push(history);
-        bool[] memory status = new bool[](tradePercent);
-        for (uint256 i = 0; i < tradePercent; i++) {
-            status[i] = true;
-        }
-        return ((status[0] == true), _tradeMode);
+        paymentHistory.push(History(block.timestamp, _updateAddress, block.number));
+        return (true, _tradeMode);
     }
 
     function getPayments(address _user)
@@ -273,7 +256,7 @@ contract GasContract is Ownable, Constants {
         address _recipient,
         uint256 _amount,
         string calldata _name
-    ) public returns (bool status_) {
+    ) public returns (bool) {
         require(
             balances[msg.sender] >= _amount,
             "Gas Contract - Transfer function - Sender has insufficient Balance"
@@ -345,27 +328,16 @@ contract GasContract is Ownable, Constants {
             _tier < 255,
             "Gas Contract - addToWhitelist function -  tier level should not be greater than 255"
         );
-        whitelist[_userAddrs] = _tier;
+
         if (_tier > 3) {
-            whitelist[_userAddrs] -= _tier;
             whitelist[_userAddrs] = 3;
-        } else if (_tier == 1) {
-            whitelist[_userAddrs] -= _tier;
-            whitelist[_userAddrs] = 1;
-        } else if (_tier > 0 && _tier < 3) {
-            whitelist[_userAddrs] -= _tier;
-            whitelist[_userAddrs] = 2;
-        }
-        uint256 wasLastAddedOdd = wasLastOdd;
-        if (wasLastAddedOdd == 1) {
-            wasLastOdd = 0;
-            isOddWhitelistUser[_userAddrs] = wasLastAddedOdd;
-        } else if (wasLastAddedOdd == 0) {
-            wasLastOdd = 1;
-            isOddWhitelistUser[_userAddrs] = wasLastAddedOdd;
         } else {
-            revert("Contract hacked, imposible, call help");
+            whitelist[_userAddrs] = _tier;
         }
+
+        isOddWhitelistUser[_userAddrs] = wasLastOdd;
+        wasLastOdd = 1 - wasLastOdd;
+
         emit AddedToWhitelist(_userAddrs, _tier);
     }
 
