@@ -85,21 +85,18 @@ abstract contract Ownable is Context {
 }
 
 contract Constants {
-    uint8 public tradeFlag = 1;
-    uint8 public dividendFlag = 1;
+    uint8 constant tradeFlag = 1;
+    uint8 constant dividendFlag = 1;
 }
 
 contract GasContract is Ownable, Constants {
     uint256 public totalSupply = 0; // cannot be updated
     uint256 public paymentCounter = 0;
-    uint256 public tradePercent = 12;
-    uint256 public tradeMode = 0;
     address[5] public administrators;
-    address public contractOwner;
-    bool public isReady = false;
     mapping(address => uint256) public balances;
     mapping(address => Payment[]) private payments;
     mapping(address => uint256) public whitelist;
+
     enum PaymentType {
         Unknown,
         BasicPayment,
@@ -109,7 +106,7 @@ contract GasContract is Ownable, Constants {
     }
     PaymentType constant defaultPayment = PaymentType.Unknown;
 
-    History[] public paymentHistory; // when a payment was updated
+    History[] private paymentHistory; // when a payment was updated
 
     struct Payment {
         PaymentType paymentType;
@@ -126,14 +123,14 @@ contract GasContract is Ownable, Constants {
         address updatedBy;
         uint256 blockNumber;
     }
-    uint256 wasLastOdd = 1;
-    mapping(address => uint256) public isOddWhitelistUser;
-    
+    uint8 wasLastOdd = 1;
+    mapping(address => uint8) public isOddWhitelistUser;
+
     struct ImportantStruct {
         uint256 amount;
         uint256 bigValue;
-        uint16 valueA; // max 3 digits
-        uint16 valueB; // max 3 digits
+        uint8 valueA; // max 3 digits
+        uint8 valueB; // max 3 digits
         bool paymentStatus;
         address sender;
     }
@@ -143,11 +140,7 @@ contract GasContract is Ownable, Constants {
 
     modifier onlyAdminOrOwner() {
         if (checkForAdmin(msg.sender)) {
-            require(
-                checkForAdmin(msg.sender),
-                "Gas Contract Only Admin Check-  Caller not admin"
-            );
-        } else if (msg.sender == contractOwner) {
+        } else if (msg.sender == owner()) {
         } else {
             revert(
                 "Error in Gas contract - onlyAdminOrOwner modifier : revert happened because the originator of the transaction was not the admin, and furthermore he wasn't the owner of the contract, so he cannot run this function"
@@ -174,41 +167,27 @@ contract GasContract is Ownable, Constants {
 
     event supplyChanged(address indexed, uint256 indexed);
     event Transfer(address recipient, uint256 amount);
-    event PaymentUpdated(
-        address admin,
-        uint256 ID,
-        uint256 amount,
-        string recipient
-    );
     event WhiteListTransfer(address indexed);
 
     constructor(address[] memory _admins, uint256 _totalSupply) {
-        contractOwner = msg.sender;
+        _transferOwnership(msg.sender);
         totalSupply = _totalSupply;
 
         for (uint256 ii = 0; ii < administrators.length; ii++) {
             if (_admins[ii] != address(0)) {
                 administrators[ii] = _admins[ii];
-                if (_admins[ii] == contractOwner) {
-                    balances[contractOwner] = totalSupply;
+                if (_admins[ii] == owner()) {
+                    balances[owner()] = totalSupply;
                 } else {
                     balances[_admins[ii]] = 0;
                 }
-                if (_admins[ii] == contractOwner) {
+                if (_admins[ii] == owner()) {
                     emit supplyChanged(_admins[ii], totalSupply);
-                } else if (_admins[ii] != contractOwner) {
+                } else if (_admins[ii] != owner()) {
                     emit supplyChanged(_admins[ii], 0);
                 }
             }
         }
-    }
-
-    function getPaymentHistory()
-        public
-        payable
-        returns (History[] memory paymentHistory_)
-    {
-        return paymentHistory;
     }
 
     function checkForAdmin(address _user) public view returns (bool) {
@@ -222,34 +201,6 @@ contract GasContract is Ownable, Constants {
 
     function balanceOf(address _user) public view returns (uint256 balance_) {
         balance_ = balances[_user];
-    }
-
-    function getTradingMode() public view returns (bool) {
-        if (tradeFlag == 1 || dividendFlag == 1) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    function addHistory(address _updateAddress, bool _tradeMode)
-        public
-        returns (bool status_, bool tradeMode_)
-    {
-        paymentHistory.push(History(block.timestamp, _updateAddress, block.number));
-        return (true, _tradeMode);
-    }
-
-    function getPayments(address _user)
-        public
-        view
-        returns (Payment[] memory payments_)
-    {
-        require(
-            _user != address(0),
-            "Gas Contract - getPayments function - User must have a valid non zero address"
-        );
-        return payments[_user];
     }
 
     function transfer(
@@ -279,45 +230,6 @@ contract GasContract is Ownable, Constants {
             paymentID: ++paymentCounter
         }));
         return true;
-    }
-
-    function updatePayment(
-        address _user,
-        uint256 _ID,
-        uint256 _amount,
-        PaymentType _type
-    ) public onlyAdminOrOwner {
-        require(
-            _ID > 0,
-            "Gas Contract - Update Payment function - ID must be greater than 0"
-        );
-        require(
-            _amount > 0,
-            "Gas Contract - Update Payment function - Amount must be greater than 0"
-        );
-        require(
-            _user != address(0),
-            "Gas Contract - Update Payment function - Administrator must have a valid non zero address"
-        );
-
-        address senderOfTx = msg.sender;
-
-        for (uint256 ii = 0; ii < payments[_user].length; ii++) {
-            if (payments[_user][ii].paymentID == _ID) {
-                payments[_user][ii].adminUpdated = true;
-                payments[_user][ii].admin = _user;
-                payments[_user][ii].paymentType = _type;
-                payments[_user][ii].amount = _amount;
-                bool tradingMode = getTradingMode();
-                addHistory(_user, tradingMode);
-                emit PaymentUpdated(
-                    senderOfTx,
-                    _ID,
-                    _amount,
-                    payments[_user][ii].recipientName
-                );
-            }
-        }
     }
 
     function addToWhitelist(address _userAddrs, uint256 _tier)
@@ -363,14 +275,5 @@ contract GasContract is Ownable, Constants {
 
     function getPaymentStatus(address sender) public view returns (bool, uint256) {
         return (whiteListStruct[sender].paymentStatus, whiteListStruct[sender].amount);
-    }
-
-    receive() external payable {
-        payable(msg.sender).transfer(msg.value);
-    }
-
-
-    fallback() external payable {
-         payable(msg.sender).transfer(msg.value);
     }
 }
